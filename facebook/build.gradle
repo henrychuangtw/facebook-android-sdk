@@ -1,14 +1,34 @@
 apply plugin: 'com.android.library'
 
 repositories {
-  mavenCentral()
+    mavenCentral()
 }
 
 project.group = 'com.facebook.android'
 
 dependencies {
-    compile 'com.android.support:support-v4:[21,22)'
-    compile 'com.parse.bolts:bolts-android:1.2.0'
+    // Facebook Dependencies
+    compile 'com.android.support:support-v4:25.0.0'
+    compile 'com.android.support:appcompat-v7:25.0.0'
+    compile 'com.android.support:cardview-v7:25.0.0'
+    compile 'com.android.support:customtabs:25.0.0'
+    compile 'com.parse.bolts:bolts-android:1.4.0'
+
+    // Unit Tests
+    testCompile 'junit:junit:4.12'
+    testCompile 'org.robolectric:robolectric:3.0'
+    testCompile 'org.robolectric:shadows-support-v4:3.0'
+
+    def powerMockVersion = '1.6.1'
+    testCompile "org.powermock:powermock-module-junit4:$powerMockVersion"
+    testCompile "org.powermock:powermock-module-junit4-rule:$powerMockVersion"
+    testCompile "org.powermock:powermock-classloading-xstream:$powerMockVersion"
+    testCompile "org.powermock:powermock-api-mockito:$powerMockVersion"
+
+    // Connected Tests
+    androidTestCompile 'org.mockito:mockito-core:1.10.19'
+    androidTestCompile 'com.google.dexmaker:dexmaker:1.2'
+    androidTestCompile 'com.google.dexmaker:dexmaker-mockito:1.2'
 }
 
 android {
@@ -18,18 +38,21 @@ android {
     defaultConfig {
         minSdkVersion Integer.parseInt(project.ANDROID_BUILD_MIN_SDK_VERSION)
         targetSdkVersion Integer.parseInt(project.ANDROID_BUILD_TARGET_SDK_VERSION)
+        consumerProguardFiles 'proguard-project.txt'
+
+        vectorDrawables.useSupportLibrary = true
+    }
+
+    aaptOptions {
+        additionalParameters "--no-version-vectors"
     }
 
     lintOptions {
         abortOnError false
     }
-
-    sourceSets {
-        main {
-            manifest.srcFile 'AndroidManifest.xml'
-            java.srcDirs = ['src']
-            res.srcDirs = ['res']
-        }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_7
+        targetCompatibility JavaVersion.VERSION_1_7
     }
 }
 
@@ -43,16 +66,16 @@ def ossrhPassword = hasProperty('NEXUS_PASSWORD') ? NEXUS_PASSWORD : ""
 task setVersion {
     // The version will be derived from source
     project.version = null
-    def sdkVersionFile = file('src/com/facebook/FacebookSdkVersion.java')
+    def sdkVersionFile = file('src/main/java/com/facebook/FacebookSdkVersion.java')
     sdkVersionFile.eachLine{
         def matcher = (it =~ /(?:.*BUILD = \")(.*)(?:\".*)/)
         if (matcher.matches()) {
-          project.version = matcher[0][1]
-          return
+            project.version = matcher[0][1]
+            return
         }
     }
     if (project.version.is('unspecified')) {
-      throw new GradleScriptException('Version could not be found.', null)
+        throw new GradleScriptException('Version could not be found.', null)
     }
 }
 
@@ -109,6 +132,10 @@ signing {
 task androidJavadocs(type: Javadoc) {
     source = android.sourceSets.main.java.srcDirs
     classpath += project.files(android.getBootClasspath().join(File.pathSeparator))
+    // JDK 1.8 is more strict then 1.7. Have JDK 1.8 behave like 1.7 for javadoc generation
+    if (org.gradle.internal.jvm.Jvm.current().getJavaVersion() == JavaVersion.VERSION_1_8) {
+        options.addStringOption('Xdoclint:none', '-quiet')
+    }
 }
 
 task androidJavadocsJar(type: Jar, dependsOn: androidJavadocs) {
